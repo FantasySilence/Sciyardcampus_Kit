@@ -6,6 +6,8 @@
 的桌面版：保留原来的切题 / OCR / Word 算法，把命令行菜单换成 **pywebview + Vue 3** 的三步界面，
 并增加可取消的任务、实时日志、预览剔除和单题重识别。
 
+> 接手/维护请先读 [HANDOFF.md](HANDOFF.md)。
+
 ![预览检查](docs/screenshot-review.png)
 
 ## 功能

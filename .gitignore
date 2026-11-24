@@ -222,8 +222,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# 中间产物与前端依赖
-.temp/
+# 中间产物：保留 .temp 目录本身，只忽略里面的内容
+.temp/*
+!.temp/.gitkeep
 web/node_modules/
 
 # 源码运行时生成的题库产物与配置（默认数据根 = 仓库根）

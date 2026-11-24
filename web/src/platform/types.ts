@@ -201,6 +201,34 @@ export interface ProbeResult {
   channel: { channel?: string; adb?: string; serial?: string; window?: number[] }
 }
 
+// ------ 导出前预览 ------ //
+export interface WordPreviewQuestion {
+  index: number
+  title: string
+  mode: 'text' | 'image'
+  paragraphs: string[]
+  png: string
+}
+
+export interface WordPreviewWarning {
+  level: 'warn' | 'error'
+  text: string
+}
+
+export interface WordPreview {
+  filename: string
+  scopeTitle: string
+  font: string
+  fontSize: number
+  page: { widthCm: number; heightCm: number; marginCm: number }
+  questions: WordPreviewQuestion[]
+  skipped: { index: number; reason: string }[]
+  warnings: WordPreviewWarning[]
+  total: number
+  textCount: number
+  imageCount: number
+}
+
 // ------ 任务 ------ //
 export interface JobLog {
   seq: number

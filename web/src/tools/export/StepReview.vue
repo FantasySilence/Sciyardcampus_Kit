@@ -8,7 +8,7 @@
   - 统计与分页；确认后 emit('export')。
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import { callTool, invoke } from '../../platform/bridge'
 import { t } from '../../platform/i18n'
@@ -28,12 +28,66 @@ const emit = defineEmits<{
 }>()
 
 const filter = ref<'all' | 'check' | 'excluded'>('all')
+// 题目排布：网格（看图快）或条目（看文字快）；用户选择记在本地
+const layout = ref<'grid' | 'list'>(
+  localStorage.getItem('scikit.review.layout') === 'list' ? 'list' : 'grid',
+)
 const page = ref(1)
 const pageSize = 24
 const selectedIndex = ref<number | null>(null)
 const busy = ref(false)
 const job = useJob()
 const handled = ref('')
+
+// 详情栏宽度：中间可拖动分栏，宽度记在本地；双击分栏恢复默认
+const DETAIL_DEFAULT = 560
+const DETAIL_MIN = 340
+const DETAIL_MAX = 960
+const reviewRef = ref<HTMLElement | null>(null)
+
+function clampDetail(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return DETAIL_DEFAULT
+  return Math.min(Math.max(value, DETAIL_MIN), DETAIL_MAX)
+}
+
+const detailWidth = ref(
+  clampDetail(Number(localStorage.getItem('scikit.review.detail') || DETAIL_DEFAULT)),
+)
+
+let dragStartX = 0
+let dragStartWidth = 0
+
+function startResize(event: PointerEvent) {
+  dragStartX = event.clientX
+  dragStartWidth = detailWidth.value
+  window.addEventListener('pointermove', onResize)
+  window.addEventListener('pointerup', stopResize, { once: true })
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  // 注意：这里不能 preventDefault，否则浏览器不会补发 dblclick，双击恢复默认会失效
+}
+
+function onResize(event: PointerEvent) {
+  const total = reviewRef.value?.clientWidth ?? 1200
+  const limit = Math.max(DETAIL_MIN, total - 360)
+  const next = dragStartWidth - (event.clientX - dragStartX)
+  detailWidth.value = Math.min(Math.max(next, DETAIL_MIN), Math.min(DETAIL_MAX, limit))
+}
+
+function stopResize() {
+  window.removeEventListener('pointermove', onResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  localStorage.setItem('scikit.review.detail', String(Math.round(detailWidth.value)))
+}
+
+function resetDetailWidth() {
+  detailWidth.value = DETAIL_DEFAULT
+  window.removeEventListener('pointermove', onResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  localStorage.setItem('scikit.review.detail', String(DETAIL_DEFAULT))
+}
 
 // 纯文字编辑：草稿 + 自动保存状态（700ms 防抖，切题/离开前强制保存）
 const draftText = ref('')
@@ -83,6 +137,12 @@ function modeLabel(mode: string): string {
   return t(`export.review.mode.${mode}`)
 }
 
+/** 详情里用一句人话解释「为什么是这种呈现方式」。 */
+function autoReason(item: SessionItem): string {
+  if (!item.tags.length) return t('export.review.autoWhyPlain')
+  return t('export.review.autoWhyTags', { tags: item.tags.map(tagLabel).join('、') })
+}
+
 /** 这道题实际会以文字还是图片进入 Word（auto 时按标签判断）。 */
 function effectiveMode(item: SessionItem | null): 'text' | 'image' {
   if (!item) return 'text'
@@ -92,6 +152,60 @@ function effectiveMode(item: SessionItem | null): 'text' | 'image' {
 
 function selectItem(item: SessionItem) {
   selectedIndex.value = item.index
+}
+
+/** 条目式里显示的一行文字摘要。 */
+function excerpt(item: SessionItem): string {
+  const text = (item.text || '').replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return text.length > 120 ? `${text.slice(0, 120)}…` : text
+}
+
+function setLayout(next: 'grid' | 'list') {
+  layout.value = next
+  localStorage.setItem('scikit.review.layout', next)
+}
+
+// ------ 题号定位 ------ //
+const findText = ref('')
+const findHint = ref('')
+const findError = ref(false)
+
+/** 按题号定位：切到「全部」、翻到那一页、选中并在列表里滚到可见。 */
+async function locateQuestion() {
+  const raw = findText.value.trim()
+  if (!raw) {
+    findHint.value = ''
+    return
+  }
+  const match = raw.match(/\d+/)
+  if (!match) {
+    findHint.value = t('export.review.findInvalid')
+    findError.value = true
+    return
+  }
+  const wanted = Number(match[0])
+  const item =
+    items.value.find((entry) => entry.index === wanted) ??
+    items.value.find((entry) => entry.number === wanted)
+  if (!item) {
+    findHint.value = t('export.review.findMissing', { n: wanted })
+    findError.value = true
+    return
+  }
+
+  findHint.value = ''
+  findError.value = false
+  if (filter.value !== 'all') filter.value = 'all'
+  await nextTick()
+
+  const position = filtered.value.findIndex((entry) => entry.index === item.index)
+  page.value = position >= 0 ? Math.floor(position / pageSize) + 1 : page.value
+  selectedIndex.value = item.index
+  await nextTick()
+
+  const target = document.querySelector(`[data-index="${item.index}"]`)
+  target?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 }
 
 /** 把当前草稿写回 txt；返回时保证草稿已落盘。 */
@@ -146,6 +260,31 @@ async function setMode(mode: string) {
   }
 }
 
+/** 一键整卷：所有题都改成文字或图片。 */
+async function setAllMode(mode: 'text' | 'image') {
+  if (busy.value) return
+  busy.value = true
+  try {
+    await flushSave()
+    const data = await callTool<SessionPayload & { changed: string; count: number }>(
+      'export',
+      'set_all_render_mode',
+      { sessionId: sessionId.value, mode },
+    )
+    emit('updated', data)
+    notify(
+      'success',
+      mode === 'image'
+        ? t('export.review.allImageDone', { n: data.count })
+        : t('export.review.allTextDone', { n: data.count }),
+    )
+  } catch (error) {
+    notifyError(error)
+  } finally {
+    busy.value = false
+  }
+}
+
 async function goExport() {
   await flushSave()
   emit('export')
@@ -172,6 +311,9 @@ watch(
 
 onBeforeUnmount(() => {
   window.clearTimeout(saveTimer)
+  window.removeEventListener('pointermove', onResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
   if (dirty.value) void flushSave()
 })
 
@@ -275,7 +417,11 @@ watch(
 </script>
 
 <template>
-  <div class="review">
+  <div
+    ref="reviewRef"
+    class="review"
+    :style="{ gridTemplateColumns: `minmax(0, 1fr) 8px ${detailWidth}px` }"
+  >
     <section class="panel grid-panel">
       <div class="panel-head">
         <div class="head-left">
@@ -308,23 +454,76 @@ watch(
             {{ t('export.review.filterExcluded') }}
           </button>
         </div>
+        <div class="find">
+          <input
+            v-model="findText"
+            class="input find-input mono"
+            type="text"
+            inputmode="numeric"
+            :placeholder="t('export.review.findPlaceholder')"
+            @keydown.enter.prevent="locateQuestion"
+          />
+          <button class="btn sm" @click="locateQuestion">
+            {{ t('export.review.find') }}
+          </button>
+          <span v-if="findHint" class="hint find-hint" :class="{ danger: findError }">
+            {{ findHint }}
+          </span>
+        </div>
         <div class="row">
+          <div class="segmented small layout-seg">
+            <button
+              class="seg"
+              :class="{ active: layout === 'grid' }"
+              :title="t('export.review.layout.gridHint')"
+              @click="setLayout('grid')"
+            >
+              {{ t('export.review.layout.grid') }}
+            </button>
+            <button
+              class="seg"
+              :class="{ active: layout === 'list' }"
+              :title="t('export.review.layout.listHint')"
+              @click="setLayout('list')"
+            >
+              {{ t('export.review.layout.list') }}
+            </button>
+          </div>
           <button class="btn sm" :disabled="busy" @click="setAll(true)">
             {{ t('export.review.selectAll') }}
           </button>
           <button class="btn sm" :disabled="busy" @click="setAll(false)">
             {{ t('export.review.selectNone') }}
           </button>
+          <span class="batch-sep" />
+          <span class="muted batch-label">{{ t('export.review.batch') }}</span>
+          <button
+            class="btn sm"
+            :disabled="busy"
+            :title="t('export.review.allTextHint')"
+            @click="setAllMode('text')"
+          >
+            {{ t('export.review.allText') }}
+          </button>
+          <button
+            class="btn sm"
+            :disabled="busy"
+            :title="t('export.review.allImageHint')"
+            @click="setAllMode('image')"
+          >
+            {{ t('export.review.allImage') }}
+          </button>
         </div>
       </div>
 
       <div class="grid-body">
         <div v-if="!paged.length" class="empty">{{ t('export.review.empty') }}</div>
-        <div class="grid">
+        <div v-else-if="layout === 'grid'" class="grid">
           <article
             v-for="item in paged"
             :key="item.index"
             class="card"
+            :data-index="item.index"
             :class="{ selected: selected?.index === item.index, excluded: !item.included }"
             @click="selectItem(item)"
           >
@@ -341,16 +540,65 @@ watch(
               </button>
             </div>
             <div class="meta">
-              <span class="kind">{{ item.kind }}</span>
-              <span v-if="item.exportMode === 'text'" class="badge">
-                {{ t('export.review.mode.text') }}
-              </span>
-              <span v-else-if="item.exportMode === 'image'" class="badge warn">
-                {{ t('export.review.mode.image') }}
+              <span class="chip-kind">{{ item.kind }}</span>
+              <span
+                class="mode-badge"
+                :class="effectiveMode(item)"
+                :title="t(`export.review.mode.${item.exportMode || 'auto'}`)"
+              >
+                {{ modeLabel(effectiveMode(item)) }}
               </span>
               <span v-for="tag in item.tags" :key="tag" class="badge warn">{{ tagLabel(tag) }}</span>
               <span v-if="item.ocrError" class="badge danger">{{ t('export.review.ocrError') }}</span>
             </div>
+          </article>
+        </div>
+
+        <div v-else class="list">
+          <article
+            v-for="item in paged"
+            :key="item.index"
+            class="row-item"
+            :data-index="item.index"
+            :class="{ selected: selected?.index === item.index, excluded: !item.included }"
+            @click="selectItem(item)"
+          >
+            <img
+              class="row-thumb"
+              :src="mediaUrl(item.png, 120)"
+              loading="lazy"
+              :alt="`第${item.index}题`"
+            />
+            <span class="idx mono">#{{ item.index }}</span>
+            <div class="row-main">
+              <div class="row-title">
+                <span class="chip-kind">{{ item.kind }}</span>
+                <span
+                  class="mode-badge"
+                  :class="effectiveMode(item)"
+                  :title="t(`export.review.mode.${item.exportMode || 'auto'}`)"
+                >
+                  {{ modeLabel(effectiveMode(item)) }}
+                </span>
+                <span v-for="tag in item.tags" :key="tag" class="badge warn">
+                  {{ tagLabel(tag) }}
+                </span>
+                <span v-if="item.ocrError" class="badge danger">
+                  {{ t('export.review.ocrError') }}
+                </span>
+              </div>
+              <div class="row-text" :class="{ empty: !excerpt(item) }">
+                {{ excerpt(item) || t('export.review.noTextRow') }}
+              </div>
+            </div>
+            <button
+              class="toggle inline"
+              :class="{ on: item.included }"
+              :title="item.included ? t('export.review.exclude') : t('export.review.include')"
+              @click.stop="toggle(item)"
+            >
+              {{ item.included ? '✓' : '✕' }}
+            </button>
           </article>
         </div>
       </div>
@@ -370,6 +618,13 @@ watch(
         </button>
       </div>
     </section>
+
+    <div
+      class="splitter"
+      :title="t('export.review.dragHint')"
+      @pointerdown="startResize"
+      @dblclick="resetDetailWidth"
+    />
 
     <section class="panel detail-panel">
       <div class="panel-head">
@@ -395,6 +650,38 @@ watch(
           <button class="btn sm" @click="copyText(selected)">{{ t('export.review.copy') }}</button>
         </div>
 
+        <div class="mode-card" :class="effectiveMode(selected)">
+          <div class="mode-head">
+            <span class="mode-title">{{ t('export.review.modeCardTitle') }}</span>
+            <span class="mode-pill">{{ modeLabel(effectiveMode(selected)) }}</span>
+          </div>
+          <div class="mode-desc">
+            {{
+              effectiveMode(selected) === 'image'
+                ? t('export.review.modeCardImage')
+                : t('export.review.modeCardText')
+            }}
+          </div>
+          <div class="mode-reason">
+            {{
+              (selected.exportMode || 'auto') === 'auto'
+                ? autoReason(selected)
+                : t('export.review.manualReason')
+            }}
+          </div>
+          <div class="segmented mode-seg">
+            <button
+              v-for="mode in ['auto', 'text', 'image']"
+              :key="mode"
+              class="seg"
+              :class="{ active: (selected.exportMode || 'auto') === mode }"
+              @click="setMode(mode)"
+            >
+              {{ modeLabel(mode) }}
+            </button>
+          </div>
+        </div>
+
         <div class="editor">
           <div class="editor-head">
             <span>{{ t('export.review.textEditor') }}</span>
@@ -408,23 +695,6 @@ watch(
             @input="onTextInput"
             @blur="flushSave"
           />
-          <div class="row-wrap mode-row">
-            <span class="muted">{{ t('export.review.renderMode') }}</span>
-            <div class="segmented small">
-              <button
-                v-for="mode in ['auto', 'text', 'image']"
-                :key="mode"
-                class="seg"
-                :class="{ active: (selected.exportMode || 'auto') === mode }"
-                @click="setMode(mode)"
-              >
-                {{ modeLabel(mode) }}
-              </button>
-            </div>
-            <span class="hint">
-              {{ t('export.review.effective', { mode: modeLabel(effectiveMode(selected)) }) }}
-            </span>
-          </div>
           <div class="row">
             <button class="btn sm" :disabled="!dirty" @click="flushSave">
               {{ t('export.review.saveText') }}
@@ -447,13 +717,39 @@ watch(
 .review {
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
+  /* 实际列宽由内联样式给出（可拖动分栏）；这里是兜底 */
+  grid-template-columns: minmax(0, 1fr) 8px 560px;
   gap: 12px;
   min-height: 0;
 }
 
 .grid-panel {
   min-height: 0;
+}
+
+/* 拖动分栏：拖动改详情宽度，双击恢复默认 */
+.splitter {
+  align-self: stretch;
+  margin: -4px -6px;
+  border-radius: 4px;
+  cursor: col-resize;
+  position: relative;
+}
+
+.splitter::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  bottom: 8%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--line);
+}
+
+.splitter:hover::after {
+  background: var(--brand-dim);
 }
 
 .head-left {
@@ -474,8 +770,41 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
+}
+
+/* 题号定位 */
+.find {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.find-input {
+  width: 104px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.find-hint {
+  white-space: nowrap;
+}
+
+/* 批量：全部改文字 / 全部改图片 */
+.batch-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--line);
+}
+
+.batch-label {
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .grid-body {
@@ -555,13 +884,137 @@ watch(
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 8px;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 6px;
   font-size: 11px;
 }
 
-.kind {
+/* 卡片里的标签统一成同高小框：题型 / 文字 / 图片 / 公式 */
+.meta .badge,
+.row-title .badge {
+  height: 18px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 10px;
+}
+
+/* 题型与「文字 / 图片」用同一套小方框：同高、同圆角、同内边距，只换颜色 */
+.chip-kind,
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chip-kind {
   color: var(--muted);
+  background: transparent;
+}
+
+.mode-badge.text {
+  border-color: var(--brand-dim);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.mode-badge.image {
+  border-color: rgba(242, 193, 78, 0.45);
+  background: rgba(242, 193, 78, 0.12);
+  color: var(--warn);
+}
+
+/* 条目式排布：一行一题，看文字更快 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.row-item:hover {
+  border-color: var(--line-strong);
+}
+
+.row-item.selected {
+  border-color: var(--brand-dim);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+
+.row-item.excluded {
+  opacity: 0.55;
+}
+
+.row-thumb {
+  flex: 0 0 auto;
+  width: 68px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: var(--bg);
+}
+
+.row-item .idx {
+  position: static;
+  flex: 0 0 auto;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.row-text {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-text.empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.toggle.inline {
+  position: static;
+  flex: 0 0 auto;
+}
+
+.layout-seg .seg {
+  height: 26px;
+  padding: 0 8px;
 }
 
 .pager {
@@ -587,16 +1040,20 @@ watch(
 }
 
 .detail-img {
+  flex: 0 0 auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg);
   overflow: hidden;
-  max-height: 42%;
+  /* 只用 px 上限：按百分比算会随详情栏高度被压扁，甚至只剩几十像素 */
+  max-height: 240px;
 }
 
 .detail-img img {
   display: block;
   width: 100%;
+  max-height: 240px;
+  object-fit: contain;
 }
 
 .editor {
@@ -629,8 +1086,8 @@ watch(
 
 .text-editor {
   width: 100%;
-  min-height: 180px;
-  max-height: 320px;
+  min-height: 300px;
+  max-height: 520px;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -646,6 +1103,85 @@ watch(
 .text-editor:focus {
   border-color: var(--brand-dim);
   box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+/* 详情里的「Word 呈现方式」：大色块 + 一句话解释 */
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.mode-card.text {
+  border-left-color: var(--brand);
+  background: linear-gradient(90deg, var(--brand-soft), transparent 60%), var(--surface-2);
+}
+
+.mode-card.image {
+  border-left-color: var(--warn);
+  background: linear-gradient(90deg, rgba(242, 193, 78, 0.14), transparent 60%), var(--surface-2);
+}
+
+.mode-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mode-title {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.mode-card.text .mode-pill {
+  background: var(--brand);
+  color: #04241f;
+}
+
+.mode-card.image .mode-pill {
+  background: var(--warn);
+  color: #2a1e00;
+}
+
+.mode-desc {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.mode-reason {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.mode-seg {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.mode-seg .seg {
+  height: 28px;
+  padding: 0 14px;
+  font-size: 12px;
 }
 
 .mode-row {
@@ -688,9 +1224,6 @@ watch(
 }
 
 @media (max-width: 1200px) {
-  .review {
-    grid-template-columns: minmax(0, 1fr) 360px;
-  }
   .grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

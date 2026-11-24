@@ -331,15 +331,6 @@ onMounted(async () => {
 
         <ProgressBar v-if="job.running.value || job.terminal.value" :progress="job.progress.value" />
         <LogConsole class="log" :logs="job.logs.value" :show-head="false" />
-
-        <div v-if="job.snapshot.value?.artifacts?.length" class="thumbs">
-          <img
-            v-for="item in job.snapshot.value.artifacts.slice(-6)"
-            :key="item.path"
-            :src="mediaUrl(item.path, 160)"
-            :title="item.path"
-          />
-        </div>
       </div>
     </section>
   </div>
@@ -475,18 +466,5 @@ onMounted(async () => {
 .log {
   flex: 1;
   min-height: 120px;
-}
-
-.thumbs {
-  display: flex;
-  gap: 6px;
-  overflow: hidden;
-}
-
-.thumbs img {
-  height: 52px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--bg);
 }
 </style>

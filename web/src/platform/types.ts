@@ -68,6 +68,20 @@ export interface StorageInfo {
   version: string
 }
 
+// ------ 缓存（缩略图 / OCR 临时图 / 预检截图） ------ //
+export interface CacheDirInfo {
+  key: string
+  path: string
+  bytes: number
+  files: number
+}
+
+export interface CacheInfo {
+  bytes: number
+  files: number
+  dirs: CacheDirInfo[]
+}
+
 export interface AppState {
   version: string
   name: string

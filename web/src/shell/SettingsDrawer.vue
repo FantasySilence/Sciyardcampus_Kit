@@ -17,7 +17,7 @@ import { invoke } from '../platform/bridge'
 import { t } from '../platform/i18n'
 import { clone, loadSettings, resetSettings, saveSettings, settings } from '../platform/settings'
 import { notify, notifyError } from '../platform/toast'
-import type { FieldDef, StorageInfo, ToolDef } from '../platform/types'
+import type { CacheInfo, FieldDef, StorageInfo, ToolDef } from '../platform/types'
 
 const props = defineProps<{ tool: ToolDef }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>()
@@ -27,6 +27,8 @@ const draft = reactive<Record<string, any>>({})
 const saving = ref(false)
 const resetArmed = ref(false)
 const storage = ref<StorageInfo | null>(null)
+const cache = ref<CacheInfo | null>(null)
+const cacheArmed = ref(false)
 
 // ------ 草稿读写 ------ //
 function syncDraft(source: Record<string, any>) {
@@ -157,6 +159,52 @@ async function openDir() {
   }
 }
 
+// ------ 缓存 ------ //
+function formatSize(bytes: number): string {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let index = 0
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024
+    index += 1
+  }
+  return `${value >= 10 || index === 0 ? Math.round(value) : value.toFixed(1)} ${units[index]}`
+}
+
+async function refreshCache() {
+  try {
+    cache.value = await invoke<CacheInfo>('storage_cache_info')
+  } catch (error) {
+    notifyError(error)
+  }
+}
+
+async function clearCache() {
+  if (!cacheArmed.value) {
+    cacheArmed.value = true
+    window.setTimeout(() => (cacheArmed.value = false), 3000)
+    return
+  }
+  cacheArmed.value = false
+  try {
+    const result = await invoke<{
+      freedBytes: number
+      removed: number
+      skipped: number
+      cache: CacheInfo
+    }>('storage_clear_cache')
+    cache.value = result.cache
+    notify(
+      'success',
+      t('storage.cacheCleared', { size: formatSize(result.freedBytes) }),
+      result.skipped ? t('storage.cacheSkipped', { n: result.skipped }) : '',
+    )
+  } catch (error) {
+    notifyError(error)
+  }
+}
+
 const sourceLabel = computed(() => {
   const source = storage.value?.source ?? 'default'
   return t(`storage.source.${source}`)
@@ -173,6 +221,7 @@ onMounted(async () => {
   }
   syncDraft(settings[props.tool.id] ?? {})
   await refreshStorage()
+  await refreshCache()
 })
 
 watch(
@@ -300,6 +349,22 @@ watch(
             <button class="btn" @click="openDir">{{ t('storage.open') }}</button>
             <button class="btn" @click="resetDir">{{ t('storage.reset') }}</button>
           </div>
+
+          <div class="cache">
+            <div class="field-label">
+              <span>{{ t('storage.cacheTitle') }}</span>
+              <span class="badge">
+                {{ t('storage.cacheSize', { size: formatSize(cache?.bytes ?? 0), n: cache?.files ?? 0 }) }}
+              </span>
+            </div>
+            <div class="hint">{{ t('storage.cacheHint') }}</div>
+            <div class="storage-grid">
+              <button class="btn" :disabled="!cache?.files" @click="clearCache">
+                {{ cacheArmed ? t('storage.cacheConfirm') : t('storage.clearCache') }}
+              </button>
+              <button class="btn" @click="refreshCache">{{ t('action.refresh') }}</button>
+            </div>
+          </div>
         </template>
 
         <template v-else>
@@ -410,6 +475,12 @@ watch(
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin: 14px 0;
+}
+
+.cache {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
 }
 
 .about-title {

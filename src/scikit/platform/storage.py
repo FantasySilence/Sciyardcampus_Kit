@@ -51,7 +51,12 @@ class Runtime:
 
 
 class StorageManager:
-    """数据目录操作：查询信息、切换目录、打开目录。"""
+    """数据目录操作：查询信息、切换目录、打开目录、清理缓存。"""
+
+    # ------ 可清理的缓存目录 ------ #
+    # 只碰这三类「丢了能重算」的目录：缩略图、OCR 临时图、预检截图。
+    # sessions / settings / backups 与 resources 里的产物一律不动。
+    CACHE_DIRS = ("thumbs_dir", "tmp_dir", "probe_dir")
 
     def __init__(self, runtime: Runtime) -> None:
         self._rt = runtime
@@ -63,6 +68,57 @@ class StorageManager:
         data["resources"] = str(self._rt.paths.resources_dir)
         data["version"] = version_info().get("version", "")
         return data
+
+    def cache_info(self) -> dict:
+        """统计缓存目录的体积与文件数（供设置页展示）。"""
+
+        entries = []
+        total_bytes = 0
+        total_files = 0
+        for attr in self.CACHE_DIRS:
+            folder: Path = getattr(self._rt.paths, attr)
+            size, count = _path_size(folder)
+            entries.append(
+                {
+                    "key": attr.removesuffix("_dir"),
+                    "path": str(folder),
+                    "bytes": size,
+                    "files": count,
+                }
+            )
+            total_bytes += size
+            total_files += count
+        return {"bytes": total_bytes, "files": total_files, "dirs": entries}
+
+    def clear_cache(self) -> dict:
+        """清空缓存目录的内容（保留目录本身），返回释放量与跳过数。"""
+
+        if self._rt.jobs.active() is not None:
+            raise AppError("JOB_RUNNING", "任务运行中，不能清理缓存")
+
+        freed = 0
+        removed = 0
+        skipped = 0
+        for attr in self.CACHE_DIRS:
+            folder: Path = getattr(self._rt.paths, attr)
+            folder.mkdir(parents=True, exist_ok=True)
+            for entry in list(folder.iterdir()):
+                try:
+                    freed += _path_size(entry)[0]
+                    if entry.is_dir():
+                        shutil.rmtree(entry)
+                    else:
+                        entry.unlink()
+                    removed += 1
+                except OSError:
+                    # 被占用 / 没权限的项跳过，不因为一个文件失败就整体失败
+                    skipped += 1
+        return {
+            "freedBytes": freed,
+            "removed": removed,
+            "skipped": skipped,
+            "cache": self.cache_info(),
+        }
 
     # ------ 切换 ------ #
     def pick_dir(self) -> str | None:
@@ -130,3 +186,27 @@ class StorageManager:
                 shutil.copy2(file, target / file.name)
             except OSError:
                 continue
+
+
+def _path_size(path: Path) -> tuple[int, int]:
+    """统计文件或目录的总字节数与文件数；读不到的项按 0 计。"""
+
+    if not path.exists():
+        return 0, 0
+    if path.is_file():
+        try:
+            return path.stat().st_size, 1
+        except OSError:
+            return 0, 0
+
+    total = 0
+    count = 0
+    for item in path.rglob("*"):
+        if not item.is_file():
+            continue
+        try:
+            total += item.stat().st_size
+            count += 1
+        except OSError:
+            continue
+    return total, count

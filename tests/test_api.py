@@ -83,3 +83,36 @@ def test_storage_dir_is_customizable(api, tmp_path, monkeypatch) -> None:
     from scikit.platform import locator
 
     assert locator.default_dir() == app_dir()
+
+
+def test_cache_info_counts_and_clear_keeps_data(api, data_root) -> None:
+    """缓存只算缩略图 / 临时图 / 预检图；清理不动会话与设置。"""
+
+    (data_root.thumbs_dir / "a.png").write_bytes(b"x" * 100)
+    (data_root.tmp_dir / "b.png").write_bytes(b"y" * 50)
+    nested = data_root.probe_dir / "nested"
+    nested.mkdir()
+    (nested / "c.png").write_bytes(b"z" * 10)
+    session = data_root.sessions_dir / "abc.json"
+    session.write_text("{}", encoding="utf-8")
+
+    info = api.storage_cache_info()
+    assert info["ok"] is True, info
+    assert info["data"]["bytes"] == 160
+    assert info["data"]["files"] == 3
+    assert {entry["key"] for entry in info["data"]["dirs"]} == {"thumbs", "tmp", "probe"}
+
+    cleared = api.storage_clear_cache()
+    assert cleared["ok"] is True, cleared
+    assert cleared["data"]["freedBytes"] == 160
+    assert cleared["data"]["removed"] == 3
+    assert cleared["data"]["skipped"] == 0
+    assert cleared["data"]["cache"]["files"] == 0
+
+    # 目录本身保留、会话与设置区不受影响
+    assert data_root.thumbs_dir.exists()
+    assert data_root.tmp_dir.exists()
+    assert data_root.probe_dir.exists()
+    assert not any(data_root.thumbs_dir.iterdir())
+    assert session.exists()
+    assert data_root.settings_dir.exists()

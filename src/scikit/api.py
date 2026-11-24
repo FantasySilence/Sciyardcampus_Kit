@@ -177,6 +177,16 @@ class Api:
 
         return envelope(self._storage.open_dir)
 
+    def storage_cache_info(self) -> dict:
+        """统计可清理的缓存（缩略图 / OCR 临时图 / 预检截图）。"""
+
+        return envelope(self._storage.cache_info)
+
+    def storage_clear_cache(self) -> dict:
+        """清空缓存目录内容，返回释放量与是否全部成功。"""
+
+        return envelope(self._storage.clear_cache)
+
     # ------ 系统 ------ #
     def file_pick(self, kind: str = "file") -> dict:
         """弹文件/目录选择框；设置抽屉的 path 字段用。"""

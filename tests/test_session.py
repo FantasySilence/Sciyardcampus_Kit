@@ -87,3 +87,26 @@ def test_export_mode_defaults_to_auto_and_can_change(data_root) -> None:
     with pytest.raises(AppError) as error:
         store.set_render_mode(session["id"], 273, "bogus")
     assert error.value.code == "INVALID_INPUT"
+
+
+def test_set_all_render_mode_applies_to_whole_session(data_root) -> None:
+    store = SessionStore(data_root.sessions_dir)
+    session = store.create({"mode": "type", "pngType": "选择题"}, make_items())
+
+    updated = store.set_all_render_mode(session["id"], "image")
+    assert [item["exportMode"] for item in updated["items"]] == ["image", "image"]
+    assert updated["stats"]["imageCount"] == 2
+    assert updated["stats"]["textCount"] == 0
+
+    updated = store.set_all_render_mode(session["id"], "text")
+    assert [item["exportMode"] for item in updated["items"]] == ["text", "text"]
+    assert updated["stats"]["textCount"] == 2
+    assert updated["stats"]["imageCount"] == 0
+
+    # 仓储层也接受 auto（一键恢复按标签判断）；写错的值仍然拒绝
+    reset = store.set_all_render_mode(session["id"], "auto")
+    assert [item["exportMode"] for item in reset["items"]] == ["auto", "auto"]
+
+    with pytest.raises(AppError) as error:
+        store.set_all_render_mode(session["id"], "bogus")
+    assert error.value.code == "INVALID_INPUT"

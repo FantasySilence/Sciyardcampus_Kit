@@ -13,10 +13,12 @@ from scikit.platform.registry import ToolManifest
 
 from .actions import (
     history_action,
+    preview_word_action,
     probe_action,
     save_text_action,
     session_get_action,
     session_update_action,
+    set_all_render_mode_action,
     set_render_mode_action,
     start_capture_action,
     start_export_action,
@@ -30,7 +32,7 @@ MANIFEST = ToolManifest(
     description_key="export.description",
     icon="capture",
     order=10,
-    version="0.1.0",
+    version="1.0.0",
     schema=SCHEMA,
     actions=[
         {"id": "probe", "labelKey": "export.action.probe"},
@@ -48,7 +50,9 @@ HANDLERS = {
     "session_update": session_update_action,
     "save_text": save_text_action,
     "set_render_mode": set_render_mode_action,
+    "set_all_render_mode": set_all_render_mode_action,
     "start_ocr": start_ocr_action,
+    "preview_word": preview_word_action,
     "start_export": start_export_action,
     "history": history_action,
 }

@@ -188,3 +188,97 @@ def test_default_filename_uses_suffix() -> None:
         == "选择题题库.docx"
     )
     assert default_filename({"mode": "paper", "paper": "期中卷"}, tuning) == "期中卷.docx"
+
+
+def test_set_all_render_mode_action(
+    api, runtime, data_root, seed_cards
+) -> None:
+    """一键全部文字 / 全部图片：整卷生效并回传新统计。"""
+
+    session_id = seed_session(runtime, data_root, seed_cards)
+
+    result = api.tool_call(
+        "export", "set_all_render_mode", {"sessionId": session_id, "mode": "image"}
+    )
+    assert result["ok"] is True, result
+    data = result["data"]
+    assert data["changed"] == "image"
+    assert data["count"] == 3
+    assert {item["exportMode"] for item in data["session"]["items"]} == {"image"}
+    assert data["stats"]["imageCount"] == 3
+    assert data["stats"]["textCount"] == 0
+
+    back = api.tool_call(
+        "export", "set_all_render_mode", {"sessionId": session_id, "mode": "text"}
+    )
+    assert back["data"]["stats"]["textCount"] == 3
+
+    refused = api.tool_call(
+        "export", "set_all_render_mode", {"sessionId": session_id, "mode": "auto"}
+    )
+    assert refused["ok"] is False
+    assert refused["error"]["code"] == "INVALID_INPUT"
+
+
+def test_preview_word_describes_export_without_writing(
+    api, runtime, data_root, seed_cards
+) -> None:
+    """预览只读：给出与导出同源的题目计划，且不生成 docx。"""
+
+    session_id = seed_session(runtime, data_root, seed_cards)
+    preview = api.tool_call("export", "preview_word", {"sessionId": session_id})
+    assert preview["ok"] is True, preview
+    data = preview["data"]
+
+    assert data["textCount"] == 3
+    assert data["imageCount"] == 0
+    assert [question["index"] for question in data["questions"]] == [273, 274, 275]
+    first = data["questions"][0]
+    assert first["title"] == "第273题"
+    assert first["mode"] == "text"
+    assert first["paragraphs"][0].startswith("第273题的题干")
+    assert data["font"]
+    assert data["page"]["widthCm"] > 0
+    # 预览不落盘
+    assert not (data_root.word_output_dir / data["filename"]).exists()
+
+
+def test_preview_word_follows_included_and_render_mode(
+    api, runtime, data_root, seed_cards
+) -> None:
+    session_id = seed_session(runtime, data_root, seed_cards)
+    api.tool_call(
+        "export",
+        "session_update",
+        {"sessionId": session_id, "included": {"273": False}},
+    )
+    api.tool_call(
+        "export",
+        "set_render_mode",
+        {"sessionId": session_id, "index": 274, "mode": "image"},
+    )
+
+    data = api.tool_call("export", "preview_word", {"sessionId": session_id})["data"]
+
+    assert [question["index"] for question in data["questions"]] == [274, 275]
+    assert data["total"] == 2
+    assert data["textCount"] == 1
+    assert data["imageCount"] == 1
+    image_question = data["questions"][0]
+    assert image_question["mode"] == "image"
+    assert image_question["png"].endswith("274.png")
+
+
+def test_preview_word_reports_missing_text_fallback(
+    api, runtime, data_root, seed_cards
+) -> None:
+    session_id = seed_session(runtime, data_root, seed_cards)
+    data_root.txt_path("选择题", 274).unlink()
+
+    data = api.tool_call("export", "preview_word", {"sessionId": session_id})["data"]
+
+    fallback = next(question for question in data["questions"] if question["index"] == 274)
+    assert fallback["mode"] == "image"
+    assert any("274" in warning["text"] for warning in data["warnings"])
+    assert data["warnings"][0]["level"] == "warn"
+

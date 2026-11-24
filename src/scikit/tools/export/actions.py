@@ -353,6 +353,20 @@ def set_render_mode_action(payload: dict, ctx) -> dict:
     return _public_session(ctx, ctx.sessions.load(session_id))
 
 
+def set_all_render_mode_action(payload: dict, ctx) -> dict:
+    """一键把整卷所有题设成文字或图片；返回刷新后的会话给前端。"""
+
+    session_id = params.text(payload, "sessionId")
+    if not session_id:
+        raise AppError("INVALID_INPUT", "缺少会话 id")
+    mode = params.choice(payload, "mode", ("text", "image"))
+    ctx.sessions.set_all_render_mode(session_id, mode)
+    data = _public_session(ctx, ctx.sessions.load(session_id))
+    data["changed"] = mode
+    data["count"] = len(data["session"].get("items", []))
+    return data
+
+
 # ================================================================== #
 # @Description: 单题/批量重新识别                                      #
 # ================================================================== #
@@ -419,6 +433,43 @@ def start_export_action(payload: dict, ctx) -> dict:
 
     title = f"导出 {filename}"
     return {"jobId": ctx.jobs.start("export", title, run)}
+
+
+# ================================================================== #
+# @Description: 导出前预览                                             #
+# ================================================================== #
+def preview_word_action(payload: dict, ctx) -> dict:
+    """
+    按当前会话生成「将要写进 Word 的内容」，不落盘、不改数据。
+
+    只读、同步：题量再大也只是读 txt 头和文件存在性，复制几分子几毫秒。
+    前端拿到 questions 后自行排版成 A4 预览，规则与 docx.build 同源。
+    """
+
+    session_id = params.text(payload, "sessionId")
+    if not session_id:
+        raise AppError("INVALID_INPUT", "缺少会话 id")
+    session = _load_session(ctx, session_id)
+    tuning = _tuning(_settings(ctx))
+    scope = session.get("scope", {})
+    plan = docx.plan_questions(ctx.paths, session.get("items", []), tuning)
+    return {
+        "filename": docx.default_filename(scope, tuning),
+        "scopeTitle": library.scope_title(scope),
+        "font": tuning.word_font,
+        "fontSize": tuning.word_font_size,
+        "page": {
+            "widthCm": const.WORD_PAGE_WIDTH_CM,
+            "heightCm": const.WORD_PAGE_HEIGHT_CM,
+            "marginCm": const.WORD_PAGE_MARGIN_CM,
+        },
+        "questions": plan["questions"],
+        "skipped": plan["skipped"],
+        "warnings": plan["warnings"],
+        "total": plan["total"],
+        "textCount": plan["textCount"],
+        "imageCount": plan["imageCount"],
+    }
 
 
 # ================================================================== #

@@ -125,6 +125,19 @@ class SessionStore:
                 return self.save(session)
         raise AppError("ITEM_NOT_FOUND", "会话里没有这道题", str(index))
 
+    def set_all_render_mode(self, session_id: str, mode: str) -> dict:
+        """一键把整卷所有题设成同一种呈现方式（text/image）。"""
+
+        if mode not in const.EXPORT_MODES:
+            raise AppError("INVALID_INPUT", f"不支持的导出模式：{mode}")
+        session = self.load(session_id)
+        items = session.get("items", [])
+        if not items:
+            raise AppError("SESSION_EMPTY", "这个会话里没有题目")
+        for item in items:
+            item["exportMode"] = mode
+        return self.save(session)
+
     # ------ 列表 ------ #
     def list(self) -> list[dict]:
         """扫描所有会话文件，返回摘要（损坏文件跳过）。"""

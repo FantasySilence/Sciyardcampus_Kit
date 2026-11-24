@@ -227,6 +227,9 @@ __marimo__/
 !.temp/.gitkeep
 web/node_modules/
 
+# 接手文档只保留在本地，不进入仓库
+HANDOFF.md
+
 # 源码运行时生成的题库产物与配置（默认数据根 = 仓库根）
 .scikit/
 resources/row_pngs/

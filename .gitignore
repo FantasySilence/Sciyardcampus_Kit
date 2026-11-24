@@ -221,3 +221,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# 中间产物与前端依赖
+.temp/
+web/node_modules/
+
+# 源码运行时生成的题库产物与配置（默认数据根 = 仓库根）
+.scikit/
+resources/row_pngs/
+resources/row_txt/
+resources/row_paper/
+resources/word_output/

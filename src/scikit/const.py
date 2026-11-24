@@ -17,7 +17,7 @@ from __future__ import annotations
 # ================================================================== #
 # @Description: 应用标识与窗口                                        #
 # ================================================================== #
-APP_VERSION = "0.1.0"
+APP_VERSION = "1.0.0"
 APP_NAME = "Sciyardcampus Kit"
 APP_NAME_CN = "数苑校园工具包"
 APP_DIR_NAME = "Sciyardcampus_Kit"

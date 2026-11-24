@@ -1,6 +1,6 @@
 [project]
 name = "sciyardcampus-kit"
-version = "0.1.0"
+version = "1.0.0"
 description = "数苑校园工具包：采集试卷、预览检查、导出 Word"
 requires-python = ">=3.12"
 

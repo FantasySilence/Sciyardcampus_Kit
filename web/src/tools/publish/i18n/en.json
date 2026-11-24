@@ -1,0 +1,13 @@
+{
+  "publish.name": "Publish Assignment",
+  "publish.description": "Publish a question bank as an assignment (work in progress)",
+  "publish.title": "Publish Assignment",
+  "publish.wip": "WIP",
+  "publish.headline": "Assignment publishing is on the way",
+  "publish.pageDescription": "This version only keeps the entry point and plugin skeleton; no real publishing logic is included.",
+  "publish.plannedTitle": "Planned capabilities",
+  "publish.pickPaper": "Choose paper",
+  "publish.publish": "Publish",
+  "publish.hint": "This placeholder writes no data and does not connect to Sciyardcampus. To implement it, add backend actions and fill this page.",
+  "publish.action.check": "Check availability"
+}

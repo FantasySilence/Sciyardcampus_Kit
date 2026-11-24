@@ -1,0 +1,13 @@
+{
+  "publish.name": "作业发布",
+  "publish.description": "把题库发布成作业（开发中）",
+  "publish.title": "作业发布",
+  "publish.wip": "开发中",
+  "publish.headline": "作业发布还在路上",
+  "publish.pageDescription": "这一版先把入口和插件骨架留好，不包含真实的发布逻辑。",
+  "publish.plannedTitle": "计划能力",
+  "publish.pickPaper": "选择试卷",
+  "publish.publish": "发布",
+  "publish.hint": "占位页不会写入任何数据，也不会连接数苑校园。后续接入真实接口时只需要补后端 actions 和这个页面。",
+  "publish.action.check": "检查可用性"
+}

@@ -222,9 +222,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# 中间产物：保留 .temp 目录本身，只忽略里面的内容
-.temp/*
-!.temp/.gitkeep
+# 中间产物：.temp 仅保留在本地，不进入仓库
+.temp/
 web/node_modules/
 
 # 接手文档只保留在本地，不进入仓库

@@ -1,0 +1,21 @@
+Sciyardcampus Kit（数苑校园工具包）
+====================================
+
+本项目的业务逻辑（试卷截图、题卡识别、OCR 文本整理、Word 生成）移植自：
+
+    Fantasy_Silence / Sciyardcampus_file_export
+    https://github.com/FantasySilence/Sciyardcampus_file_export
+    MIT License, Copyright (c) 2026 御河DE天街
+
+界面布局、设计 token 与插件式工具注册表的思路参考：
+
+    Fantasy_Silence / LSP_PlayerKit
+    https://github.com/FantasySilence/LSP_PlayerKit
+    GNU General Public License v3.0, Copyright (c) 2026 御河DE天街
+
+两个上游项目的作者与本项目相同（Fantasy_Silence）。如果本项目要对外分发，
+请先确认 LSP_PlayerKit 的 GPLv3 与本项目许可证的兼容性；如果只在本机/内部使用，
+则不受分发条款影响。
+
+本项目的独立新增部分（pywebview 外壳、任务系统、检查会话、三步界面、
+作业发布占位骨架）沿用仓库根目录 LICENSE 的条款。

@@ -5,6 +5,8 @@
   "nav.about": "关于",
   "nav.settings": "设置",
   "nav.theme": "切换主题",
+  "nav.comingSoon": "敬请期待",
+  "nav.comingSoonHint": "更多工具正在开发中，后续版本会陆续加入。",
   "env.adbMissing": "adb 未找到",
   "env.adbNoDevice": "adb 无设备",
   "env.adbReady": "adb · {n} 台",

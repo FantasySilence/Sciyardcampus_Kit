@@ -1,0 +1,11 @@
+{
+  "regularScores.name": "平时成绩登记",
+  "regularScores.description": "登记出勤与作业等平时成绩，按班级汇总（开发中）",
+  "regularScores.title": "平时成绩登记",
+  "regularScores.wip": "开发中",
+  "regularScores.headline": "平时成绩登记还在路上",
+  "regularScores.plannedTitle": "计划能力",
+  "regularScores.action.check": "检查可用性",
+  "regularScores.action.start": "开始登记",
+  "regularScores.hint": "占位页不会写入任何数据，也不会连接数苑校园。"
+}

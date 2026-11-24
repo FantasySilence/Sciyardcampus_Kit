@@ -10,11 +10,16 @@
 from __future__ import annotations
 
 
-def test_app_state_lists_both_tools(api) -> None:
+def test_app_state_lists_all_tools(api) -> None:
     result = api.app_state()
     assert result["ok"] is True
     data = result["data"]
-    assert [tool["id"] for tool in data["tools"]] == ["export", "publish"]
+    assert [tool["id"] for tool in data["tools"]] == [
+        "export",
+        "publish",
+        "exam_scores",
+        "regular_scores",
+    ]
     # 测试里没有启动 HTTP 服务，mediaBase 允许为空；真实启动时是 127.0.0.1 地址
     assert "mediaBase" in data
 

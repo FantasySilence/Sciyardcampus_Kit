@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from scikit.platform.registry import Registry
 
-from . import export, publish
+from . import exam_scores, export, publish, regular_scores
 
 
 def build_registry() -> Registry:
@@ -20,4 +20,6 @@ def build_registry() -> Registry:
     registry = Registry()
     registry.register(export.MANIFEST, export.HANDLERS, export.LEGACY)
     registry.register(publish.MANIFEST, publish.HANDLERS, publish.LEGACY)
+    registry.register(exam_scores.MANIFEST, exam_scores.HANDLERS, exam_scores.LEGACY)
+    registry.register(regular_scores.MANIFEST, regular_scores.HANDLERS, regular_scores.LEGACY)
     return registry

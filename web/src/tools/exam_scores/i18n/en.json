@@ -1,0 +1,11 @@
+{
+  "examScores.name": "Test Scores",
+  "examScores.description": "Record test scores per class (work in progress)",
+  "examScores.title": "Test Scores",
+  "examScores.wip": "WIP",
+  "examScores.headline": "Test score registry is on the way",
+  "examScores.plannedTitle": "Planned capabilities",
+  "examScores.action.check": "Check availability",
+  "examScores.action.start": "Start recording",
+  "examScores.hint": "This placeholder writes no data and does not connect to Sciyardcampus."
+}

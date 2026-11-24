@@ -1,0 +1,11 @@
+{
+  "regularScores.name": "Regular Scores",
+  "regularScores.description": "Record regular grades (attendance, homework) per class (work in progress)",
+  "regularScores.title": "Regular Scores",
+  "regularScores.wip": "WIP",
+  "regularScores.headline": "Regular score registry is on the way",
+  "regularScores.plannedTitle": "Planned capabilities",
+  "regularScores.action.check": "Check availability",
+  "regularScores.action.start": "Start recording",
+  "regularScores.hint": "This placeholder writes no data and does not connect to Sciyardcampus."
+}

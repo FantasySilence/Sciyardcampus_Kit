@@ -1,0 +1,11 @@
+{
+  "examScores.name": "测试成绩登记",
+  "examScores.description": "登记各次测试成绩，按班级汇总（开发中）",
+  "examScores.title": "测试成绩登记",
+  "examScores.wip": "开发中",
+  "examScores.headline": "测试成绩登记还在路上",
+  "examScores.plannedTitle": "计划能力",
+  "examScores.action.check": "检查可用性",
+  "examScores.action.start": "开始登记",
+  "examScores.hint": "占位页不会写入任何数据，也不会连接数苑校园。"
+}

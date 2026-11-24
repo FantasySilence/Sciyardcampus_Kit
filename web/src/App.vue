@@ -51,6 +51,12 @@ const ICONS: Record<string, string> = {
     '<rect x="3.5" y="5" width="17" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 9h6M7 12h8M7 15h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="17.2" cy="8.2" r="1.5" fill="currentColor"/>',
   publish:
     '<path d="M4 10v4a1 1 0 0 0 1 1h2l6 4V5L7 9H5a1 1 0 0 0-1 1Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M16 8.5a5 5 0 0 1 0 7M18.6 6a8.4 8.4 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  exam:
+    '<rect x="4.5" y="4.5" width="15" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8.5 8.8h7M8.5 12h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M8.4 16.4l1.8 1.8 3.6-3.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  regular:
+    '<rect x="3.6" y="5.2" width="16.8" height="14.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.6 9.4h16.8M8 3.4v3.2M16 3.4v3.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M7.4 13h4M7.4 16.2h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  soon:
+    '<path d="M12 3.6l1.8 4.5 4.6 1.8-4.6 1.8L12 16.2l-1.8-4.5L5.6 9.9l4.6-1.8Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M17.9 15.9l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>',
   info: '<circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="8" r="1.1" fill="currentColor"/>',
   gear: '<circle cx="12" cy="12" r="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
 }
@@ -117,6 +123,11 @@ async function changeLanguage(event: Event) {
   } catch (error) {
     notifyError(error)
   }
+}
+
+/** 左轨「敬请期待」：只提示，不切换工具。 */
+function onComingSoon() {
+  notify('info', t('nav.comingSoon'), t('nav.comingSoonHint'))
 }
 
 async function onToggleTheme() {
@@ -191,6 +202,11 @@ onUnmounted(() => {
       >
         <svg viewBox="0 0 24 24" class="rail-icon" v-html="icon(tool.icon)" />
         <span class="rail-label">{{ t(tool.nameKey) }}</span>
+      </button>
+
+      <button class="rail-item soon" :title="t('nav.comingSoonHint')" @click="onComingSoon">
+        <svg viewBox="0 0 24 24" class="rail-icon" v-html="icon('soon')" />
+        <span class="rail-label">{{ t('nav.comingSoon') }}</span>
       </button>
 
       <div class="rail-spacer" />
@@ -308,6 +324,18 @@ onUnmounted(() => {
 .rail-item.active {
   background: var(--surface-2);
   border-color: var(--line-strong);
+  color: var(--brand);
+}
+
+/* 「敬请期待」：占位入口，视觉上弱化，点了只给提示 */
+.rail-item.soon {
+  opacity: 0.55;
+  border-style: dashed;
+  border-color: var(--line);
+}
+
+.rail-item.soon:hover {
+  opacity: 1;
   color: var(--brand);
 }
 

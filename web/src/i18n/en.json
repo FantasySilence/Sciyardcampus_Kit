@@ -5,6 +5,8 @@
   "nav.about": "About",
   "nav.settings": "Settings",
   "nav.theme": "Toggle theme",
+  "nav.comingSoon": "Coming soon",
+  "nav.comingSoonHint": "More tools are on the way and will arrive in future releases.",
   "env.adbMissing": "adb not found",
   "env.adbNoDevice": "adb: no device",
   "env.adbReady": "adb · {n} device(s)",
